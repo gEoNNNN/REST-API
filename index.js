@@ -1,10 +1,43 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = 8080;
 const userID = [];
 
+app.use(express.json());
+
+const products = [];
+
+const productsFile = path.join(__dirname, 'products.json');
+
+// Ensure products.json exists
+if (!fs.existsSync(productsFile)) {
+    fs.writeFileSync(productsFile, '[]', 'utf-8');
+    console.log('Created products file at:', productsFile);
+} else {
+    console.log('Using products file at:', productsFile);
+}
+
+// Helper to write products to file
+function saveProductsToFile(products) {
+    fs.writeFileSync(productsFile, JSON.stringify(products, null, 2), 'utf-8');
+}
+
+// Load products from file at startup (if exists)
+if (fs.existsSync(productsFile)) {
+    const data = fs.readFileSync(productsFile, 'utf-8');
+    try {
+        const loaded = JSON.parse(data);
+        if (Array.isArray(loaded)) {
+            products.push(...loaded);
+        }
+    } catch (e) {
+        // ignore parse errors, start with empty array
+    }
+}
 
 app.listen(
     PORT,
@@ -77,4 +110,31 @@ app.get('/verify', (req, res) => {
             message: 'Invalid or expired token'
         });
     }
+});
+
+app.post('/products', (req, res) => {
+    const { id, betamount, status, multiplayer } = req.body;
+
+    // Basic validation
+    if (
+        typeof id !== 'number' ||
+        typeof betamount !== 'number' ||
+        (status !== 'win' && status !== 'lose') ||
+        typeof multiplayer !== 'number'
+    ) {
+        return res.status(400).send({
+            status: 'error',
+            message: 'Invalid product format'
+        });
+    }
+
+    const product = { id, betamount, status, multiplayer };
+    products.push(product);
+    saveProductsToFile(products);
+
+    return res.status(201).send({
+        status: 'success',
+        message: 'Product created',
+        product: product
+    });
 });
