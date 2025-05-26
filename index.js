@@ -138,3 +138,63 @@ app.post('/products', (req, res) => {
         product: product
     });
 });
+
+app.put('/products/:id', (req, res) => {
+    const { id } = req.params;
+    const { betamount, status, multiplayer } = req.body;
+
+    // Find product by id
+    const productIndex = products.findIndex(p => p.id === Number(id));
+    if (productIndex === -1) {
+        return res.status(404).send({
+            status: 'error',
+            message: 'Product not found'
+        });
+    }
+
+    // Validate input
+    if (
+        (betamount !== undefined && typeof betamount !== 'number') ||
+        (status !== undefined && status !== 'win' && status !== 'lose') ||
+        (multiplayer !== undefined && typeof multiplayer !== 'number')
+    ) {
+        return res.status(400).send({
+            status: 'error',
+            message: 'Invalid product format'
+        });
+    }
+
+    // Update fields if provided
+    if (betamount !== undefined) products[productIndex].betamount = betamount;
+    if (status !== undefined) products[productIndex].status = status;
+    if (multiplayer !== undefined) products[productIndex].multiplayer = multiplayer;
+
+    saveProductsToFile(products);
+
+    return res.status(200).send({
+        status: 'success',
+        message: 'Product updated',
+        product: products[productIndex]
+    });
+});
+
+app.delete('/products/:id', (req, res) => {
+    const { id } = req.params;
+    const productIndex = products.findIndex(p => p.id === Number(id));
+    if (productIndex === -1) {
+        return res.status(404).send({
+            status: 'error',
+            message: 'Product not found'
+        });
+    }
+
+    // Remove the product from the array
+    const deletedProduct = products.splice(productIndex, 1)[0];
+    saveProductsToFile(products);
+
+    return res.status(200).send({
+        status: 'success',
+        message: 'Product deleted',
+        product: deletedProduct
+    });
+});
