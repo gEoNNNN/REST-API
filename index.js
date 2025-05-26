@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const PORT = 8080;
 const userID = [];
-console.log('Generated token:', token);
+
 
 app.listen(
     PORT,
@@ -14,7 +14,8 @@ app.listen(
 app.post('/token/:id/:role', (req, res) => {
     const { id } = req.params;
     const { role } = req.params;
-    let permissions; // Declare here
+    let permissions;
+    const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
 
     if (role == 'ADMIN') {
         permissions = ["READ", "WRITE"];
@@ -50,4 +51,30 @@ app.post('/token/:id/:role', (req, res) => {
         message: 'Token generated successfully',
         token: token
     });
+});
+
+// Add this endpoint to verify JWT tokens
+app.get('/verify', (req, res) => {
+    const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) {
+        return res.status(400).send({
+            status: 'error',
+            message: 'No token provided'
+        });
+    }
+
+    try {
+        const decoded = jwt.verify(token, secretKey);
+        return res.status(200).send({
+            status: 'success',
+            message: 'Token is valid',
+            payload: decoded
+        });
+    } catch (err) {
+        return res.status(401).send({
+            status: 'error',
+            message: 'Invalid or expired token'
+        });
+    }
 });
