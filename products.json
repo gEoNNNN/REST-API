@@ -1,8 +1,98 @@
 [
   {
     "id": 1,
-    "betamount": 100,
+    "betamount": 200,
+    "status": "win",
+    "multiplayer": 1.3
+  },
+  {
+    "id": 946458761,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.728
+  },
+  {
+    "id": 901171307,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.19
+  },
+  {
+    "id": 922310491,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 2.4
+  },
+  {
+    "id": 711158453,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 2.4
+  },
+  {
+    "id": 434286490,
+    "betamount": 1,
     "status": "win",
     "multiplayer": 1.2
+  },
+  {
+    "id": 373829879,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.15
+  },
+  {
+    "id": 785017168,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1
+  },
+  {
+    "id": 118908065,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.042
+  },
+  {
+    "id": 310941087,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.728
+  },
+  {
+    "id": 717608604,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 1.44
+  },
+  {
+    "id": 573474622,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 1.12
+  },
+  {
+    "id": 582292958,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 1.12
+  },
+  {
+    "id": 278295134,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.12
+  },
+  {
+    "id": 398170222,
+    "betamount": 1,
+    "status": "win",
+    "multiplayer": 1.085
+  },
+  {
+    "id": 784125162,
+    "betamount": 1,
+    "status": "lose",
+    "multiplayer": 3.583
   }
 ]
