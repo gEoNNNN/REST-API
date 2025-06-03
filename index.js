@@ -44,40 +44,22 @@ app.listen(
     () => console.log(`Server is running on http://localhost:${PORT}`)
 );
 
-app.post('/token/:id/:role', (req, res) => {
-    const { id } = req.params;
-    const { role } = req.params;
-    let permissions;
+app.post('/token', (req, res) => {
+    const { id, role, permissions } = req.body;
     const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
 
-    if (role == 'ADMIN') {
-        permissions = ["READ", "WRITE"];
+    if (!id || !role || !Array.isArray(permissions)) {
+        return res.status(400).send({
+            status: 'error',
+            message: 'id, role, and permissions are required'
+        });
     }
-    if (role == 'VISITOR') {
-        permissions = ["READ"];
-    }
-    if (role == 'WRITER') {
-        permissions = ["WRITE"];
-    }
+
     const expiresInSeconds = 60;
     const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
 
-    const payload = {
-        role: role,
-        permissions: permissions,
-        exp: exp
-    };
-
+    const payload = { role, permissions, exp };
     const token = jwt.sign(payload, secretKey);
-
-    if (!userID.includes(id)) {
-        userID.push(id);
-    } else {
-        return res.status(400).send({
-            status: 'error',
-            message: 'User ID already exists'
-        });
-    }
 
     return res.status(200).send({
         status: 'success',
@@ -112,10 +94,74 @@ app.get('/verify', (req, res) => {
     }
 });
 
-app.post('/products', (req, res) => {
-    const { id, betamount, status, multiplayer } = req.body;
+// Middleware to check JWT and permissions
+function authorize(requiredPermissions) {
+    return (req, res, next) => {
+        const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
+        const token = req.headers['authorization']?.split(' ')[1];
+        if (!token) {
+            return res.status(401).send({
+                status: 'error',
+                message: 'No token provided'
+            });
+        }
+        try {
+            const decoded = jwt.verify(token, secretKey);
+            req.user = decoded;
+            // Check if user has at least one of the required permissions
+            if (!decoded.permissions || !requiredPermissions.some(p => decoded.permissions.includes(p))) {
+                return res.status(403).send({
+                    status: 'error',
+                    message: 'Forbidden: insufficient permissions'
+                });
+            }
+            next();
+        } catch (err) {
+            return res.status(401).send({
+                status: 'error',
+                message: 'Invalid or expired token'
+            });
+        }
+    };
+}
 
-    // Basic validation
+// --- Apply authorization middleware to routes ---
+
+// Only ADMIN and VISITOR can read all or one product
+app.get('/products', authorize(['READ']), (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedProducts = products.slice(startIndex, endIndex);
+
+    res.status(200).send({
+        status: 'success',
+        page: page,
+        limit: limit,
+        total: products.length,
+        products: paginatedProducts
+    });
+});
+
+app.get('/products/:id', authorize(['READ']), (req, res) => {
+    const { id } = req.params;
+    const product = products.find(p => p.id === Number(id));
+    if (!product) {
+        return res.status(404).send({
+            status: 'error',
+            message: 'Product not found'
+        });
+    }
+    return res.status(200).send({
+        status: 'success',
+        product: product
+    });
+});
+
+// Only ADMIN and WRITER can create products
+app.post('/products', authorize(['WRITE']), (req, res) => {
+    const { id, betamount, status, multiplayer } = req.body;
     if (
         typeof id !== 'number' ||
         typeof betamount !== 'number' ||
@@ -127,7 +173,6 @@ app.post('/products', (req, res) => {
             message: 'Invalid product format'
         });
     }
-
     const product = { id, betamount, status, multiplayer };
     products.push(product);
     saveProductsToFile(products);
@@ -139,11 +184,10 @@ app.post('/products', (req, res) => {
     });
 });
 
-app.put('/products/:id', (req, res) => {
+// Only ADMIN and WRITER can update products
+app.put('/products/:id', authorize(['WRITE']), (req, res) => {
     const { id } = req.params;
     const { betamount, status, multiplayer } = req.body;
-
-    // Find product by id
     const productIndex = products.findIndex(p => p.id === Number(id));
     if (productIndex === -1) {
         return res.status(404).send({
@@ -151,8 +195,6 @@ app.put('/products/:id', (req, res) => {
             message: 'Product not found'
         });
     }
-
-    // Validate input
     if (
         (betamount !== undefined && typeof betamount !== 'number') ||
         (status !== undefined && status !== 'win' && status !== 'lose') ||
@@ -163,8 +205,6 @@ app.put('/products/:id', (req, res) => {
             message: 'Invalid product format'
         });
     }
-
-    // Update fields if provided
     if (betamount !== undefined) products[productIndex].betamount = betamount;
     if (status !== undefined) products[productIndex].status = status;
     if (multiplayer !== undefined) products[productIndex].multiplayer = multiplayer;
@@ -178,7 +218,15 @@ app.put('/products/:id', (req, res) => {
     });
 });
 
-app.delete('/products/:id', (req, res) => {
+// Only ADMIN can delete products
+app.delete('/products/:id', authorize(['WRITE', 'DELETE']), (req, res) => {
+    // Only ADMIN will have both WRITE and DELETE permissions
+    if (req.user.role !== 'ADMIN') {
+        return res.status(403).send({
+            status: 'error',
+            message: 'Forbidden: only ADMIN can delete'
+        });
+    }
     const { id } = req.params;
     const productIndex = products.findIndex(p => p.id === Number(id));
     if (productIndex === -1) {
@@ -187,8 +235,6 @@ app.delete('/products/:id', (req, res) => {
             message: 'Product not found'
         });
     }
-
-    // Remove the product from the array
     const deletedProduct = products.splice(productIndex, 1)[0];
     saveProductsToFile(products);
 
