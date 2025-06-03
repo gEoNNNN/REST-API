@@ -2,12 +2,20 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
+
+
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const swaggerDocument = YAML.load('./swagger.yaml');
+
 
 const app = express();
 const PORT = 8080;
 const userID = [];
 
 app.use(express.json());
+app.use(cors());
 
 const products = [];
 
@@ -44,11 +52,13 @@ app.listen(
     () => console.log(`Server is running on http://localhost:${PORT}`)
 );
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.post('/token', (req, res) => {
     const { id, role, permissions } = req.body;
     const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
 
     if (!id || !role || !Array.isArray(permissions)) {
+        logRequest(req, 400, 'id, role, and permissions are required');
         return res.status(400).send({
             status: 'error',
             message: 'id, role, and permissions are required'
@@ -61,6 +71,7 @@ app.post('/token', (req, res) => {
     const payload = { role, permissions, exp };
     const token = jwt.sign(payload, secretKey);
 
+    logRequest(req, 200, 'Token generated successfully');
     return res.status(200).send({
         status: 'success',
         message: 'Token generated successfully',
@@ -68,11 +79,11 @@ app.post('/token', (req, res) => {
     });
 });
 
-// Add this endpoint to verify JWT tokens
 app.get('/verify', (req, res) => {
     const secretKey = 's3cR3t!@#1234567890qwertyUIOPasdfghJKL';
     const token = req.headers['authorization']?.split(' ')[1];
     if (!token) {
+        logRequest(req, 400, 'No token provided');
         return res.status(400).send({
             status: 'error',
             message: 'No token provided'
@@ -81,18 +92,25 @@ app.get('/verify', (req, res) => {
 
     try {
         const decoded = jwt.verify(token, secretKey);
+        logRequest(req, 200, 'Token is valid');
         return res.status(200).send({
             status: 'success',
             message: 'Token is valid',
             payload: decoded
         });
     } catch (err) {
+        logRequest(req, 401, 'Invalid or expired token');
         return res.status(401).send({
             status: 'error',
             message: 'Invalid or expired token'
         });
     }
 });
+
+// Helper for logging
+function logRequest(req, status, message) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Status: ${status} - ${message}`);
+}
 
 // Middleware to check JWT and permissions
 function authorize(requiredPermissions) {
@@ -135,6 +153,7 @@ app.get('/products', authorize(['READ']), (req, res) => {
     const endIndex = startIndex + limit;
     const paginatedProducts = products.slice(startIndex, endIndex);
 
+    logRequest(req, 200, 'Products listed');
     res.status(200).send({
         status: 'success',
         page: page,
@@ -148,11 +167,13 @@ app.get('/products/:id', authorize(['READ']), (req, res) => {
     const { id } = req.params;
     const product = products.find(p => p.id === Number(id));
     if (!product) {
+        logRequest(req, 404, 'Product not found');
         return res.status(404).send({
             status: 'error',
             message: 'Product not found'
         });
     }
+    logRequest(req, 200, 'Product found');
     return res.status(200).send({
         status: 'success',
         product: product
@@ -168,6 +189,7 @@ app.post('/products', authorize(['WRITE']), (req, res) => {
         (status !== 'win' && status !== 'lose') ||
         typeof multiplayer !== 'number'
     ) {
+        logRequest(req, 400, 'Invalid product format');
         return res.status(400).send({
             status: 'error',
             message: 'Invalid product format'
@@ -177,6 +199,7 @@ app.post('/products', authorize(['WRITE']), (req, res) => {
     products.push(product);
     saveProductsToFile(products);
 
+    logRequest(req, 201, 'Product created');
     return res.status(201).send({
         status: 'success',
         message: 'Product created',
@@ -190,6 +213,7 @@ app.put('/products/:id', authorize(['WRITE']), (req, res) => {
     const { betamount, status, multiplayer } = req.body;
     const productIndex = products.findIndex(p => p.id === Number(id));
     if (productIndex === -1) {
+        logRequest(req, 404, 'Product not found');
         return res.status(404).send({
             status: 'error',
             message: 'Product not found'
@@ -200,6 +224,7 @@ app.put('/products/:id', authorize(['WRITE']), (req, res) => {
         (status !== undefined && status !== 'win' && status !== 'lose') ||
         (multiplayer !== undefined && typeof multiplayer !== 'number')
     ) {
+        logRequest(req, 400, 'Invalid product format');
         return res.status(400).send({
             status: 'error',
             message: 'Invalid product format'
@@ -211,6 +236,7 @@ app.put('/products/:id', authorize(['WRITE']), (req, res) => {
 
     saveProductsToFile(products);
 
+    logRequest(req, 200, 'Product updated');
     return res.status(200).send({
         status: 'success',
         message: 'Product updated',
@@ -220,8 +246,8 @@ app.put('/products/:id', authorize(['WRITE']), (req, res) => {
 
 // Only ADMIN can delete products
 app.delete('/products/:id', authorize(['WRITE', 'DELETE']), (req, res) => {
-    // Only ADMIN will have both WRITE and DELETE permissions
     if (req.user.role !== 'ADMIN') {
+        logRequest(req, 403, 'Forbidden: only ADMIN can delete');
         return res.status(403).send({
             status: 'error',
             message: 'Forbidden: only ADMIN can delete'
@@ -230,6 +256,7 @@ app.delete('/products/:id', authorize(['WRITE', 'DELETE']), (req, res) => {
     const { id } = req.params;
     const productIndex = products.findIndex(p => p.id === Number(id));
     if (productIndex === -1) {
+        logRequest(req, 404, 'Product not found');
         return res.status(404).send({
             status: 'error',
             message: 'Product not found'
@@ -238,6 +265,7 @@ app.delete('/products/:id', authorize(['WRITE', 'DELETE']), (req, res) => {
     const deletedProduct = products.splice(productIndex, 1)[0];
     saveProductsToFile(products);
 
+    logRequest(req, 200, 'Product deleted');
     return res.status(200).send({
         status: 'success',
         message: 'Product deleted',
